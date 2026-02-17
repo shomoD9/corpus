@@ -1,3 +1,9 @@
+/*
+  This file migrates legacy Corpus state payloads into schema version 2.
+  It exists separately so migration rules can evolve without polluting normal read/write paths.
+  It talks to the schema module for sanitization and visibility-key mapping.
+*/
+
 import {
   FIELD_KEYS,
   SECTION_FIELD_MAP,
@@ -14,6 +20,7 @@ export function migrateStateToV2(candidate, nowIso = () => new Date().toISOStrin
   }
 
   if (candidate.schemaVersion === 2) {
+    // Once data is already on v2, we only sanitize to guard against partial corruption.
     return sanitizeState(candidate, nowIso);
   }
 

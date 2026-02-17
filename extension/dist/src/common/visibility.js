@@ -1,3 +1,10 @@
+/*
+  This file computes effective field visibility and filtered CV payloads.
+  It exists to keep visibility semantics centralized, because form editing, preview/export, and
+  version overrides all depend on the same merge/filter logic.
+  It talks to schema constants for known field keys and empty-data constructors.
+*/
+
 import { FIELD_KEYS, SECTION_FIELD_MAP, createEmptyCvData } from './schema.js';
 
 export function mergeFieldVisibility(defaults, overrides) {
@@ -25,6 +32,7 @@ export function filterCvDataByVisibility(data, effectiveVisibility) {
   const output = createEmptyCvData();
   const source = data || createEmptyCvData();
 
+  // Personal info is copied field-by-field so hidden values are wiped instead of leaked.
   for (const key of Object.keys(output.personalInfo)) {
     const fieldKey = `personalInfo.${key}`;
     output.personalInfo[key] = effectiveVisibility?.[fieldKey] ? source.personalInfo?.[key] || '' : '';

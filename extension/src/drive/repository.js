@@ -1,3 +1,10 @@
+/*
+  This file is the Drive-backed repository for persisted Corpus state and PDF exports.
+  It exists separately from the raw Drive client so business-level operations (load/save state,
+  bootstrap folder tree, export stable PDF links) can stay explicit and testable.
+  It talks to `DriveClient` for network I/O and to common schema/migration utilities for data safety.
+*/
+
 import { buildPdfBytesFromVersion } from '../common/pdf.js';
 import { migrateStateToV2 } from '../common/migration.js';
 import { sanitizeState, STATE_FILE_NAME } from '../common/schema.js';
@@ -17,6 +24,7 @@ export class DriveRepository {
     const existing = await this.driveClient.findFileInAppData(STATE_FILE_NAME);
 
     if (!existing) {
+      // First-run bootstrap creates the hidden appData state file lazily.
       const initial = sanitizeState(
         {
           schemaVersion: 2,
@@ -67,6 +75,7 @@ export class DriveRepository {
       await this.loadState();
     }
 
+    // Optimistic concurrency guard: callers must save against the latest known state timestamp.
     if (expectedUpdatedAt && this.lastKnownUpdatedAt && expectedUpdatedAt !== this.lastKnownUpdatedAt) {
       const error = new Error('State conflict. Reload and retry.');
       error.code = 'STATE_CONFLICT';

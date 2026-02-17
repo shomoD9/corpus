@@ -1,3 +1,11 @@
+/*
+  This file is the extension service worker entrypoint and command router.
+  It exists as a dedicated boundary so every UI surface can send one consistent message contract
+  and remain ignorant of Drive and auth implementation details.
+  It talks to schema/domain helpers in `../common/*` and persistence primitives in `../drive/*`,
+  then returns normalized `{ ok, data, error }` responses back to extension pages.
+*/
+
 import {
   createEmptyCvData,
   createFieldVisibilityDefaults,
@@ -54,6 +62,7 @@ export function createCommandRouter({ auth, repo, nowIso = () => new Date().toIS
     const payload = message.payload || {};
 
     try {
+      // We route every command through one switch so error handling and auth rules stay uniform.
       switch (command) {
         case 'AUTH_STATUS': {
           try {
@@ -78,6 +87,7 @@ export function createCommandRouter({ auth, repo, nowIso = () => new Date().toIS
           let state = sanitizeState(await repo.loadState(), nowIso);
 
           if (typeof repo.bootstrapDriveBackend === 'function') {
+            // Bootstrap runs only after auth so folder setup never races anonymous startup.
             state = sanitizeState(await repo.bootstrapDriveBackend(state), nowIso);
             state = await persistState(state, state.updatedAt);
           } else {
@@ -136,6 +146,7 @@ export function createCommandRouter({ auth, repo, nowIso = () => new Date().toIS
             }
 
             if (payload.data) {
+              // Sanitization protects state shape even if UI sends partial or malformed payloads.
               current.data = sanitizeCvData(payload.data);
             }
           }

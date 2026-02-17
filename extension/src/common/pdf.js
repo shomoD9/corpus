@@ -1,3 +1,10 @@
+/*
+  This file builds a minimal PDF byte payload from a CV version snapshot.
+  It exists as a single export boundary so both popup downloads and Drive export paths share one
+  formatting implementation.
+  It talks to visibility helpers to ensure hidden fields never leak into output.
+*/
+
 import { filterCvDataByVisibility, sectionHasVisibleFields } from './visibility.js';
 
 export function buildPdfLines({ cvTypeName, versionLabel, snapshot, effectiveFieldVisibility, createdAt }) {

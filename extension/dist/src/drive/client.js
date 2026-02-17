@@ -1,3 +1,10 @@
+/*
+  This file is the low-level Google Drive HTTP client for Corpus.
+  It exists as a transport-focused layer so repository logic can describe intent (load state, upload PDF)
+  without knowing request URLs, multipart boundaries, or token retry behavior.
+  It talks to the token provider from `auth.js` and to the Drive REST endpoints.
+*/
+
 import { getAccessToken } from './auth.js';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
@@ -205,6 +212,7 @@ export class DriveClient {
       body: options.body
     });
 
+    // We retry once on 401 with forced token refresh before surfacing token-expired errors.
     if (response.status === 401 && attempt === 0) {
       return this.requestRaw(url, options, 1);
     }

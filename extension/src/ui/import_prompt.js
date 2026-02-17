@@ -1,3 +1,9 @@
+/*
+  This file stores copy-ready prompt text for the JSON import assistant flow.
+  It exists to keep UX copy centralized and testable, instead of hard-coding long prompt strings inside view code.
+  It talks to `app.js`, which renders the copy button and guidance steps in the create-type modal.
+*/
+
 export const IMPORT_PROMPT = `Convert the uploaded or attached CV/resume file (PDF, DOCX, or Word) into valid JSON for Corpus.
 
 Rules:

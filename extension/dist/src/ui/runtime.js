@@ -1,3 +1,10 @@
+/*
+  This file is the UI-side runtime messaging adapter.
+  It exists to hide raw `chrome.runtime.sendMessage` details and provide a consistent async error model
+  (including interactive reconnect behavior) to editor and popup callers.
+  It talks to the background service worker through command payloads and normalized response envelopes.
+*/
+
 export async function sendRuntimeCommand(command, payload = {}, options = {}) {
   const response = await dispatchCommand(command, payload);
 
@@ -15,6 +22,7 @@ export async function sendRuntimeCommand(command, payload = {}, options = {}) {
     command !== 'AUTH_SIGN_IN' &&
     (error.code === 'AUTH_REQUIRED' || error.code === 'TOKEN_EXPIRED')
   ) {
+    // Reconnect is opt-in so read-only calls can fail fast while user actions self-heal.
     const reconnect = await dispatchCommand('AUTH_SIGN_IN', {});
 
     if (!reconnect?.ok) {

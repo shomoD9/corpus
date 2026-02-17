@@ -1,7 +1,15 @@
+/*
+  This file contains popup-specific pure helpers.
+  It exists to keep sorting and action-model logic independent from DOM concerns in `popup.js`,
+  which makes popup behavior easier to test and safer to refactor.
+  It talks to popup rendering code through deterministic return values.
+*/
+
 export function sortVersionsForPopup(versions, defaultVersionId) {
   const list = Array.isArray(versions) ? [...versions] : [];
 
   return list.sort((a, b) => {
+    // Default version must always surface first regardless of lexical label order.
     if (a.id === defaultVersionId) {
       return -1;
     }

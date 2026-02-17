@@ -1,3 +1,9 @@
+/*
+  This file is the main UI controller for the legacy standalone web CV Studio.
+  It exists as a single-page orchestrator for rendering, state updates, modal flows, and local persistence.
+  It talks to `core.js` for pure logic helpers and to browser localStorage for state durability.
+*/
+
 import {
   buildCvTypeFromModal,
   makeVersionRecord,
@@ -126,6 +132,7 @@ function loadState() {
   }
 
   try {
+    // Any corrupted local payload gracefully falls back to a clean initial state.
     const parsed = JSON.parse(raw);
     return sanitizeState(parsed);
   } catch {

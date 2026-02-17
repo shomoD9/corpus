@@ -1,3 +1,10 @@
+/*
+  This file renders and controls the compact extension popup.
+  It exists as a dedicated deployment utility surface where users quickly download/export/open CV versions
+  without entering the full editor.
+  It talks to runtime commands for state/export actions and to common PDF/visibility helpers for local downloads.
+*/
+
 import { buildPdfBytesFromVersion } from '../common/pdf.js';
 import { mergeFieldVisibility } from '../common/visibility.js';
 import { sortVersionsForPopup, buildVersionActionModel } from './popup_logic.js';
@@ -171,6 +178,7 @@ async function ensureExportLink(cvTypeId, versionId) {
   const key = `${cvTypeId}:${versionId}`;
   const existing = ui.state?.exportsIndex?.[key];
 
+  // We reuse stable links whenever possible to avoid needless Drive writes.
   if (existing?.webViewLink) {
     return existing.webViewLink;
   }

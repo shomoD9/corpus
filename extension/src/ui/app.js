@@ -1,7 +1,18 @@
+/*
+  This file is the main editor surface for the Corpus Chrome extension.
+  It exists as a single orchestrator because the editor's value comes from coordinating many concerns
+  at once: rendering views, handling user input, scheduling sync, and invoking runtime commands.
+  It talks to schema constants from `../common/*`, runtime messaging via `runtime.js`, and the new
+  local-first sync lifecycle via `sync_controller.js` and `lifecycle_flush.js`.
+*/
+
 import { FIELD_KEYS } from '../common/schema.js';
 import { sendRuntimeCommand } from './runtime.js';
 import { FORM_LABELS } from './form_labels.js';
 import { IMPORT_FLOW_STEPS, IMPORT_PROMPT } from './import_prompt.js';
+import { createPerfTracker } from './perf.js';
+import { registerLifecycleFlush } from './lifecycle_flush.js';
+import { createSyncController } from './sync_controller.js';
 import {
   createEmptyEducation,
   createEmptyProject,
@@ -23,15 +34,41 @@ const ui = {
   selectedVersionId: '',
   modal: null,
   exportVersionId: '',
-  saveTimer: null,
-  toastTimer: null
+  toastTimer: null,
+  syncStatus: 'saved'
 };
 
 let appState = null;
+const perf = createPerfTracker();
+const syncController = createSyncController({
+  sendCommand: sendUserCommand,
+  onStatus: (status) => {
+    ui.syncStatus = status;
+    perf.markSync('status', { status });
+    updateSyncStatusBadge();
+  },
+  onState: (nextState) => {
+    if (!nextState) {
+      return;
+    }
+    setAppState(nextState);
+  },
+  onError: (error) => {
+    showToast(error?.message || 'Sync failed. Local draft is safe.');
+  }
+});
 
 appEl.addEventListener('click', onClick);
 appEl.addEventListener('input', onInput);
 appEl.addEventListener('change', onChange);
+
+registerLifecycleFlush({
+  onFlush: async (reason) => {
+    if (!ui.authRequired && syncController.hasPendingDrafts()) {
+      await syncController.flush(reason);
+    }
+  }
+});
 
 initialize();
 
@@ -43,13 +80,16 @@ async function initialize() {
 async function loadState() {
   try {
     const data = await sendRuntimeCommand('STATE_LOAD', {});
-    appState = data.state;
+    // We overlay local drafts on top of remote state so reloads never discard unsynced edits.
+    const restoredState = await syncController.restoreDrafts(data.state);
+    setAppState(restoredState);
     ui.authRequired = false;
     ensureTypeSelection();
   } catch (error) {
     if (error.code === 'AUTH_REQUIRED') {
       ui.authRequired = true;
       appState = null;
+      ui.syncStatus = 'saved';
       return;
     }
 
@@ -65,6 +105,7 @@ function render() {
 
   ensureTypeSelection();
 
+  // The editor uses full-template rendering for now; sync work is isolated so UI stays responsive.
   appEl.innerHTML = `
     <div class="app-shell">
       <aside class="sidebar">
@@ -83,6 +124,9 @@ function render() {
     </div>
     ${renderModal()}
   `;
+
+  updateSyncStatusBadge();
+  perf.markRender('app-render');
 }
 
 function renderAuth() {
@@ -97,6 +141,8 @@ function renderAuth() {
       </div>
     </div>
   `;
+
+  perf.markRender('auth-render');
 }
 
 function renderMainView() {
@@ -162,6 +208,9 @@ function renderSelectedType(cvType) {
       <div>
         <h3>${escapeHtml(cvType.name)}</h3>
         <div class="muted">Default version: ${escapeHtml(cvType.defaultVersionId || 'Not set')}</div>
+        <div class="sync-status-wrap">
+          <span id="sync-status" class="sync-status sync-status-${escapeHtml(ui.syncStatus)}">${escapeHtml(getSyncStatusLabel(ui.syncStatus))}</span>
+        </div>
       </div>
     </div>
 
@@ -632,7 +681,8 @@ async function onClick(event) {
   if (action === 'sign-in') {
     try {
       const data = await sendRuntimeCommand('AUTH_SIGN_IN', {});
-      appState = data.state;
+      const restoredState = await syncController.restoreDrafts(data.state);
+      setAppState(restoredState);
       ui.authRequired = false;
       ensureTypeSelection();
       render();
@@ -646,6 +696,7 @@ async function onClick(event) {
     await sendRuntimeCommand('AUTH_SIGN_OUT', {});
     ui.authRequired = true;
     appState = null;
+    ui.syncStatus = 'saved';
     render();
     return;
   }
@@ -722,7 +773,7 @@ async function onClick(event) {
     }
 
     const data = await sendUserCommand('CV_UPDATE_TYPE', { cvTypeId: typeId, name: trimmed });
-    appState = data.state;
+    setAppState(data.state);
     render();
     return;
   }
@@ -734,7 +785,7 @@ async function onClick(event) {
     }
 
     const data = await sendUserCommand('CV_DELETE_TYPE', { cvTypeId: typeId });
-    appState = data.state;
+    setAppState(data.state);
     ensureTypeSelection();
     render();
     return;
@@ -829,8 +880,12 @@ async function onClick(event) {
     if (!type) {
       return;
     }
+    // Version snapshots should represent the latest user edits, so we flush pending drafts first.
+    if (!(await ensureSyncedBeforeCriticalAction('before-version-create'))) {
+      return;
+    }
     const data = await sendUserCommand('CV_CREATE_VERSION', { cvTypeId: type.id });
-    appState = data.state;
+    setAppState(data.state);
     ui.selectedVersionId = data.version.id;
     ui.exportVersionId = data.version.id;
     render();
@@ -848,11 +903,15 @@ async function onClick(event) {
     if (!type) {
       return;
     }
+    if (!(await ensureSyncedBeforeCriticalAction('before-version-default'))) {
+      return;
+    }
+
     const data = await sendUserCommand('CV_SET_DEFAULT_VERSION', {
       cvTypeId: type.id,
       versionId: target.dataset.versionId || ''
     });
-    appState = data.state;
+    setAppState(data.state);
     render();
     return;
   }
@@ -862,12 +921,16 @@ async function onClick(event) {
     if (!type) {
       return;
     }
+    // Export must run against Drive-backed state to keep version links deterministic.
+    if (!(await ensureSyncedBeforeCriticalAction('before-export'))) {
+      return;
+    }
 
     const data = await sendUserCommand('EXPORT_VERSION_TO_DRIVE', {
       cvTypeId: type.id,
       versionId: target.dataset.versionId || ''
     });
-    appState = data.state;
+    setAppState(data.state);
     ui.cvSubView = 'export';
     render();
     showToast('Export complete.');
@@ -880,12 +943,16 @@ async function onClick(event) {
       return;
     }
 
+    if (!(await ensureSyncedBeforeCriticalAction('before-export-selected'))) {
+      return;
+    }
+
     const data = await sendUserCommand('EXPORT_VERSION_TO_DRIVE', {
       cvTypeId: type.id,
       versionId: ui.exportVersionId
     });
 
-    appState = data.state;
+    setAppState(data.state);
     render();
     showToast('Export complete.');
     return;
@@ -908,14 +975,14 @@ async function onClick(event) {
         url: ''
       }
     });
-    appState = data.state;
+    setAppState(data.state);
     render();
     return;
   }
 
   if (action === 'delete-link') {
     const data = await sendUserCommand('LINKS_DELETE', { id: target.dataset.id || '' });
-    appState = data.state;
+    setAppState(data.state);
     render();
     return;
   }
@@ -936,6 +1003,11 @@ function onInput(event) {
 
   if (!appState || ui.authRequired) {
     return;
+  }
+
+  if (typeof action === 'string' && action.startsWith('update-')) {
+    // We only mark field-edit actions for latency tracing.
+    perf.markInput(action);
   }
 
   if (action === 'modal-name' && ui.modal) {
@@ -1138,7 +1210,7 @@ async function onChange(event) {
       }
     });
 
-    appState = data.state;
+    setAppState(data.state);
     render();
     return;
   }
@@ -1163,7 +1235,7 @@ async function onChange(event) {
       }
     });
 
-    appState = data.state;
+    setAppState(data.state);
     render();
     return;
   }
@@ -1181,7 +1253,7 @@ async function onChange(event) {
     }
 
     const data = await sendUserCommand('LINKS_UPSERT', { entry });
-    appState = data.state;
+    setAppState(data.state);
     return;
   }
 }
@@ -1199,7 +1271,7 @@ async function createTypeFromModal() {
       importJson: ui.modal.importJson
     });
 
-    appState = data.state;
+    setAppState(data.state);
     ui.selectedTypeId = data.cvType.id;
     ui.modal = null;
     ui.cvSubView = 'form';
@@ -1253,34 +1325,81 @@ function getSelectedVersion(cvType) {
 }
 
 function queueTypePersist(cvTypeId) {
-  if (ui.saveTimer) {
-    clearTimeout(ui.saveTimer);
-  }
-
-  ui.saveTimer = window.setTimeout(async () => {
-    await persistType(cvTypeId);
-  }, 350);
-}
-
-async function persistType(cvTypeId) {
-  const type = appState.cvTypes.find((item) => item.id === cvTypeId);
+  const type = appState?.cvTypes?.find((item) => item.id === cvTypeId);
   if (!type) {
     return;
   }
 
-  try {
-    const data = await sendRuntimeCommand('CV_UPDATE_TYPE', {
-      cvTypeId: type.id,
-      data: type.data
-    });
-    appState = data.state;
-  } catch (error) {
-    showToast(error.message || 'Save failed.');
-  }
+  syncController.scheduleTypeSave(type.id, type.data, appState?.updatedAt || '');
 }
 
 async function sendUserCommand(command, payload = {}) {
   return sendRuntimeCommand(command, payload, { interactiveReconnect: true });
+}
+
+function setAppState(nextState) {
+  appState = nextState || null;
+
+  if (appState) {
+    // Pruning happens here so deleted CV types do not leave stale local draft entries.
+    syncController.absorbRemoteState(appState);
+  }
+
+  ensureTypeSelection();
+  updateSyncStatusBadge();
+}
+
+async function ensureSyncedBeforeCriticalAction(reason) {
+  if (!syncController.hasPendingDrafts() && syncController.getStatus() !== 'error') {
+    return true;
+  }
+
+  // Critical actions (export/versioning) pay the sync cost up-front for predictable outcomes.
+  perf.markSync('flush-start', { reason, status: syncController.getStatus() });
+  const result = await syncController.flush(reason);
+  perf.markSync('flush-finish', {
+    reason,
+    status: syncController.getStatus(),
+    ok: result.ok
+  });
+
+  if (syncController.getStatus() === 'error') {
+    showToast('Could not sync latest edits. Please retry after reconnecting.');
+    return false;
+  }
+
+  return true;
+}
+
+function getSyncStatusLabel(status) {
+  if (status === 'saving') {
+    return 'Saving';
+  }
+
+  if (status === 'pending') {
+    return 'Pending sync';
+  }
+
+  if (status === 'error') {
+    return 'Sync error (local draft kept)';
+  }
+
+  return 'Saved to Drive';
+}
+
+function updateSyncStatusBadge() {
+  const badge = document.getElementById('sync-status');
+  if (!badge) {
+    return;
+  }
+
+  const knownStates = ['saved', 'saving', 'pending', 'error'];
+  for (const state of knownStates) {
+    badge.classList.remove(`sync-status-${state}`);
+  }
+
+  badge.classList.add(`sync-status-${ui.syncStatus}`);
+  badge.textContent = getSyncStatusLabel(ui.syncStatus);
 }
 
 function updateDashboardDraft(id, field, value) {

@@ -1,3 +1,9 @@
+/*
+  This file provides helper constructors and text/list conversion utilities for editor entries.
+  It exists so section-editing behavior stays consistent across work experience, education, and projects.
+  It talks to `app.js`, which uses these helpers while rendering and parsing user input.
+*/
+
 export function createEmptyWorkExperience() {
   return {
     company: '',
@@ -28,6 +34,7 @@ export function createEmptyProject() {
 }
 
 export function splitLinesToList(value) {
+  // Blank lines are intentionally dropped so textarea spacing does not create empty list items.
   return String(value || '')
     .split('\n')
     .map((item) => item.trim())

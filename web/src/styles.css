@@ -1,3 +1,10 @@
+/*
+  This file defines the styling for the legacy web CV Studio surface.
+  It exists independently from extension styles so historical web UI behavior remains stable
+  while extension design evolves.
+  It talks to class names emitted from `web/src/app.js`.
+*/
+
 :root {
   --bg: #ffffff;
   --surface: #ffffff;

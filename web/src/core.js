@@ -1,3 +1,9 @@
+/*
+  This file contains pure domain helpers for the legacy web CV Studio implementation.
+  It exists separately from UI rendering so data-shape and validation rules can be tested in isolation.
+  It talks to `app.js`, which consumes these functions while handling modal and form operations.
+*/
+
 export const SECTION_KEYS = [
   'personalInfo',
   'workExperience',
@@ -11,6 +17,7 @@ export function createDefaultVisibility() {
   const visibility = {};
 
   for (const key of SECTION_KEYS) {
+    // Sections default to visible so first exports are complete unless user hides content explicitly.
     visibility[key] = true;
   }
 

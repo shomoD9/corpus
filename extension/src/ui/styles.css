@@ -1,3 +1,10 @@
+/*
+  This file defines the shared visual language for both extension editor and popup surfaces.
+  It exists as a single stylesheet so typography, spacing, and component primitives stay coherent
+  across UI entrypoints.
+  It talks to semantic class names emitted by `app.js` and `popup.js`.
+*/
+
 :root {
   --bg: #f5f5f4;
   --surface: #ffffff;
@@ -10,8 +17,8 @@
   --radius-sm: 12px;
   --radius-md: 18px;
   --radius-lg: 26px;
-  --shadow-soft: 0 20px 40px rgba(0, 0, 0, 0.06);
-  --shadow-pop: 0 30px 60px rgba(0, 0, 0, 0.11);
+  --shadow-soft: 0 10px 20px rgba(0, 0, 0, 0.045);
+  --shadow-pop: 0 14px 30px rgba(0, 0, 0, 0.08);
   --font-display: 'Baskerville', 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
   --font-text: 'Garamond', 'Palatino', 'Times New Roman', serif;
 }
@@ -27,9 +34,7 @@ body {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(900px 320px at 50% 0%, rgba(0, 0, 0, 0.08), transparent 74%),
-    linear-gradient(180deg, #f9f9f8 0%, var(--bg) 50%, #f4f4f3 100%);
+  background: linear-gradient(180deg, #f9f9f8 0%, var(--bg) 56%, #f4f4f3 100%);
   color: var(--ink);
   font-family: var(--font-text);
   line-height: 1.52;
@@ -432,7 +437,7 @@ button {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: linear-gradient(180deg, #ffffff, #fafafa);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-soft);
   padding: 34px;
   text-align: center;
 }
@@ -465,7 +470,7 @@ button {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: linear-gradient(180deg, #ffffff, #f9f9f9);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-soft);
   padding: 24px;
   max-height: 90vh;
   overflow: auto;
@@ -496,9 +501,40 @@ button {
 
 .popup-body {
   width: 390px;
-  background:
-    radial-gradient(450px 170px at 50% -10%, rgba(0, 0, 0, 0.09), transparent 70%),
-    var(--bg);
+  background: var(--bg);
+}
+
+.sync-status-wrap {
+  margin-top: 10px;
+}
+
+.sync-status {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #ffffff;
+  color: var(--ink-soft);
+}
+
+.sync-status-saving,
+.sync-status-pending {
+  border-color: #a9a9a9;
+  color: #404040;
+}
+
+.sync-status-error {
+  border-color: #111111;
+  background: #111111;
+  color: #ffffff;
+}
+
+.sync-status-saved {
+  border-color: var(--line);
+  color: var(--ink-soft);
 }
 
 .popup-root {

@@ -1,3 +1,9 @@
+/*
+  This file is the Google OAuth token utility for the extension runtime.
+  It exists separately from API client code so token lifecycle and Drive request mechanics remain decoupled.
+  It talks directly to `chrome.identity` and returns normalized auth errors to callers in UI and background layers.
+*/
+
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/drive.appdata'
@@ -16,6 +22,7 @@ export async function getAccessToken(options = {}) {
   const forceRefresh = Boolean(options.forceRefresh);
 
   if (forceRefresh && currentToken) {
+    // We clear the token cache before retrying so Drive 401 responses can recover cleanly.
     await removeCachedAuthToken(currentToken);
     currentToken = '';
   }

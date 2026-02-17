@@ -1,3 +1,11 @@
+/*
+  This file defines the canonical data schema for Corpus state and CV content.
+  It exists as a shared source of truth so UI, background routing, migration, and export logic all
+  agree on the same field keys and normalization behavior.
+  It talks to callers in `../background`, `../common`, and `../drive` by exporting constructors,
+  sanitizers, and helper constants.
+*/
+
 export const FIELD_KEYS = [
   'personalInfo.name',
   'personalInfo.title',
@@ -345,6 +353,7 @@ function safeUrlString(value) {
 }
 
 function unwrapMarkdownLink(value) {
+  // AI tools often return markdown links; the form expects raw URLs.
   const markdownLink = value.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
   if (markdownLink) {
     return markdownLink[2].trim();

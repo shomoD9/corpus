@@ -1,0 +1,15 @@
+{
+  "name": "corpus-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CV Studio web app",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "node scripts/build.mjs --clean",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Corpus CV Studio",
+  "description": "Build versioned CVs and export to Google Drive.",
+  "version": "1.0.0",
+  "action": {
+    "default_title": "Corpus",
+    "default_popup": "src/ui/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background/service_worker.js",
+    "type": "module"
+  },
+  "permissions": [
+    "identity",
+    "storage",
+    "tabs",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/drive.appdata"
+    ]
+  }
+}

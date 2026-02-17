@@ -1,0 +1,16 @@
+{
+  "name": "corpus-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Corpus V1 Chrome extension",
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "clean": "node scripts/build.mjs --clean",
+    "package": "node scripts/build.mjs --zip"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
